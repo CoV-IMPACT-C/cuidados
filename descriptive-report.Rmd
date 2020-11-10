@@ -1,0 +1,379 @@
+---
+title: "Análisis Descriptivo - Cuidados"
+subtitle: '**CoV-IMPACT- C **"Coronavirus Impact Monitor. </br> Policy, Access, Control and Transectorial Consequences" </br> Proyecto ANID-COVID N° 960' 
+author: "por Valentina Andrade"
+lang: es-CL
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: yes
+    depth: 2
+    theme: cerulean
+    number_sections: yes
+---
+
+
+```{r, echo=FALSE}
+htmltools::img(src = knitr::image_uri("input/icon-192.png"), 
+               alt = 'logo', 
+               style = 'position:absolute; top:0; right:0; padding:10px;')
+```
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = F, warning = F, results = 'asis')
+summarytools::st_options(bootstrap.css     = FALSE,       # Already part of the theme so no need for it
+           plain.ascii       = FALSE,       # One of the essential settings
+           style             = "rmarkdown", # Idem.
+           dfSummary.silent  = TRUE,        # Suppresses messages about temporary files
+           footnote          = NA,          # Keeping the results minimalistic
+           subtitle.emphasis = FALSE)       # For the vignette theme, this gives better results.
+#summarytools::st_css()
+
+library(ggplot2); theme_set(theme_classic() + theme(text = element_text(size = 12)))
+library(knitr);  options(knitr.kable.NA = '')
+```
+
+```{r packages, echo = F}
+# 1. Cargar paquetes
+pacman::p_load(sjmisc, tidyverse, ggplot2, ggsci, googlesheets4, magrittr, kableExtra, ggpubr, chilemapas, summarytools, texreg, sjPlot)
+```
+
+```{r load, echo = F}
+#2. Cargar base de datos 
+mv <- readRDS("output/movid.rds")
+codebook <- read_sheet("https://docs.google.com/spreadsheets/d/1NtZVYC_yTEswUgR2bQg3iq3AhJfukCadNh3g-WF3Bh8/edit?usp=sharing", range = "B224:C231")
+```
+
+# Descripción de la base de datos
+
+El siguiente análisis está desarrollado en base a la encuesta panel "Monitoreo Nacional de Síntomas y Prácticas COVID-19" (MOVID-19). A la fecha, **MOVID-19**  ha recopilado un total de `r format(nrow(mv))` y un total de `r format (ncol(mv))` variables. 
+
+El presente informe tiene por objetivo mostrar estadísticos descriptivos de variables del **Módulo de Cuidados**.
+
+Para su conocimiento, [las variables indicadas son](https://docs.google.com/spreadsheets/d/1NtZVYC_yTEswUgR2bQg3iq3AhJfukCadNh3g-WF3Bh8/edit#gid=0): 
+
+**Tabla 1.** Libro de códigos para análisis de cuidados
+```{r, echo=FALSE}
+codebook <- as.data.frame(codebook)
+codebook %>%  knitr::kable(digits = 2, row.names = F,  booktabs = T)  %>% 
+            kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = T)  
+```
+
+```{r filtro, echo = F}
+#Filtro general
+mv <- mv %>% group_by(pob_id) %>% filter(semana == max(semana)) %>% ungroup(pob_id)
+```
+
+# Descripción cuidadores y no cuidadores
+
+**Gráfico 1.** Composición por género de cuidadores y no cuidadores
+```{r, echo = F}
+mv$cui <- car::recode(mv$dic_cui, c("1= 'Cuidador/a';0='No Cuidador/a'"), as.factor = T ) 
+mv %>% filter(!is.na(cui), sexo != "Otro") %>%
+  group_by(sexo, cui) %>%
+  summarise(n = n()) %>% 
+  mutate (prop = round(n/ sum(n),4)*100) %>% 
+  ggplot(aes(x = sexo, y = prop, fill = cui)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = paste0(prop, "%")),
+            position = position_stack(vjust = .5), color="white", size= 4) + 
+  labs(x = "", y = "%", title = "")  + 
+  theme_classic() + scale_fill_jama(name = "")
+
+```
+
+**Gráfico 2.** Composición por género y nivel educacional de cuidadores y no cuidadores
+
+```{r, echo = F}
+mv %>% filter(!is.na(cui), sexo != "Otro") %>%
+  group_by(cui, sexo, educ_3cat) %>%
+  summarise(n = n()) %>% na.omit() %>% 
+  mutate (prop = round(n/ sum(n),4)*100) %>% 
+  ggplot(aes(x = cui, y = prop, fill = educ_3cat)) +
+  geom_bar(stat = "identity") + facet_wrap(.~sexo) +
+  geom_text(aes(label = paste0(prop, "%")),
+            position = position_stack(vjust = .5), color="white", size= 4) + 
+  labs(x = "", y = "%", title = "")  + 
+  theme_classic() + scale_fill_jama(name = "")
+
+```
+
+
+# Descripción de los cuidadores
+
+Descripción de los cuidadores (% de la muestra, edad promedio, género, ocupación), en total y por grupo de cuidadores (menores de 5 a, 6 -18, adultos)
+
+En la encuesta MOVID-19,  `r format (table(mv$dic_cui[mv$dic_cui == 1]))` participantes indicaron ser cuidadores, correspondiendo a un 39,6% de la muestra. El análisis que se prosigue está basado solo en esos participantes 
+
+
+**Tabla 2**. Estadísticos descriptivos sociodemográficos de cuidadores
+```{r, echo = F, results='asis'}
+m <- mv %>% filter(dic_cui ==1)%>% select(sexo, edad_cat, educ_3cat, pr3_ocupacion, prev)
+
+print(summarytools::dfSummary(m,plain.ascii = FALSE, headings = F, method = "render"))
+```
+Fuente: Elaboración de MOVID-19
+*Nota*: Solo fueron consideradas (i) la última observación de las personas con datos para (ii) en el módulo de cuidados
+
+
+**Tabla 3**. Estadísticos descriptivos sociodemográficos para quiénes cuida niños/as entre 0 y 5 años
+```{r, echo = F, results='asis'}
+mv %>% filter(!is.na(cui1_dep_nna5)) %>% select(cui1_dep_nna5,sexo, edad_3cat, educ_4cat, pr3_ocupacion) %>% pivot_longer(!cui1_dep_nna5, names_to = "variable", values_to = "value") %>%  filter(cui1_dep_nna5 == 1) %>% 
+  group_by(variable,value)  %>% 
+  summarise(n = n()) %>% 
+  mutate (prop = round(n/ sum(n),4)*100)  %>% 
+  knitr::kable(digits = 2, row.names = F,  booktabs = T,
+             col.names = c("Variable","Subgrupo", "n", "%")) %>% collapse_rows(columns = 1:2) %>%   pack_rows("Edad", 1, 3) %>%
+            pack_rows("Nivel Educacional", 4, 7) %>%
+            pack_rows("Ocupación", 8, 12) %>% 
+            pack_rows("Sexo", 13, 15) %>%
+            kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = T)  
+```
+Fuente: Elaboración de MOVID-19
+*Nota*: Solo fueron consideradas (i) la última observación de las personas con datos para (ii) en el módulo de cuidados
+
+**Tabla 4**. Estadísticos descriptivos sociodemográficos para quiénes cuida niños/as entre 6 y 18 años
+```{r, echo = F, results='asis'}
+mv %>% filter(!is.na(cui1_dep_nna18)) %>% select(cui1_dep_nna18,sexo, edad_3cat, educ_4cat, pr3_ocupacion) %>% pivot_longer(!cui1_dep_nna18, names_to = "variable", values_to = "value") %>% 
+  filter(cui1_dep_nna18 == 1) %>%
+  group_by(variable,value, )  %>% 
+  summarise(n = n()) %>% 
+  mutate (prop = round(n/ sum(n),4)*100)   %>% na.omit() %>% 
+  knitr::kable(digits = 2, row.names = F,  booktabs = T,
+             col.names = c("Variable","Subgrupo",  "n", "%")) %>% collapse_rows(columns = 1:2)  %>%  pack_rows("Edad", 1, 3) %>%
+            pack_rows("Nivel Educacional", 4, 7) %>%
+            pack_rows("Ocupación", 8, 12) %>% 
+            pack_rows("Sexo", 13, 15) %>%
+            kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = T)  
+```
+Fuente: Elaboración de MOVID-19
+*Nota*: Solo fueron consideradas (i) la última observación de las personas con datos para (ii) en el módulo de cuidados
+
+**Tabla 5**. Estadísticos descriptivos sociodemográficos para quiénes cuida adultos dependientes
+```{r, echo = F, results='asis'}
+mv %>% filter(!is.na(cui1_dep_adultos)) %>% select(cui1_dep_adultos,sexo, edad_3cat, educ_4cat, pr3_ocupacion) %>% pivot_longer(!cui1_dep_adultos, names_to = "variable", values_to = "value") %>% 
+  filter(cui1_dep_adultos == 1) %>% 
+  group_by(variable,value)  %>% 
+  summarise(n = n()) %>% 
+  mutate (prop = round(n/ sum(n),4)*100) %>% 
+  knitr::kable(digits = 2, row.names = F,  booktabs = T,
+             col.names = c("Variable","Subgrupo",  "n", "%")) %>% collapse_rows(columns = 1:2)  %>%  pack_rows("Edad", 1, 3) %>%
+            pack_rows("Nivel Educacional", 4, 7) %>%
+            pack_rows("Ocupación", 8, 12) %>% 
+            pack_rows("Sexo", 13, 15) %>%
+            kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = T)  
+```
+Fuente: Elaboración de MOVID-19
+*Nota*: Solo fueron consideradas (i) la última observación de las personas con datos para (ii) en el módulo de cuidados
+
+**Tabla 6**. Estadísticos descriptivos sociodemográficos para quiénes cuidan a otros/as
+```{r, echo = F, results='asis'}
+mv %>% filter(!is.na(cui1_dep_otra)) %>% select(cui1_dep_otra,sexo, edad_3cat, educ_4cat, pr3_ocupacion) %>% pivot_longer(!cui1_dep_otra, names_to = "variable", values_to = "value") %>% 
+  filter(cui1_dep_otra == 1) %>%
+  group_by(variable,value)  %>% 
+  summarise(n = n()) %>% 
+  mutate (prop = round(n/ sum(n),4)*100) %>%  
+  knitr::kable(digits = 2, row.names = F,  booktabs = T,
+             col.names = c("Variable","Subgrupo",  "n", "%")) %>% collapse_rows(columns = 1:2)  %>%  pack_rows("Edad", 1, 3) %>%
+            pack_rows("Nivel Educacional", 4, 7) %>%
+            pack_rows("Ocupación", 8, 12) %>% 
+            pack_rows("Sexo", 13, 15) %>%
+            kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = T)  
+```
+Fuente: Elaboración de MOVID-19
+*Nota*: Solo fueron consideradas (i) la última observación de las personas con datos para (ii) en el módulo de cuidados
+
+# Descripción de la pregunta de aumento de cuidados, en total y por tipo de cuidado.
+
+**Tabla 7.** Estadísticos descriptivos del cambio en carga de cuidados según características sociodemográficas
+```{r, echo = F, results='asis'}
+mv %>% filter(!is.na(dic_cui_d)) %>% select(dic_cui_d,sexo, edad_3cat, educ_4cat, pr3_ocupacion) %>% pivot_longer(!dic_cui_d, names_to = "variable", values_to = "value") %>% 
+  group_by(variable,value, dic_cui_d)  %>% 
+  summarise(n = n()) %>% 
+  mutate (prop = round(n/ sum(n),4)*100)   %>% na.omit() %>% 
+  knitr::kable(digits = 2, row.names = F,  booktabs = T,
+             col.names = c("Variable","Subgrupo", "Cambio en cuidados", "n", "%")) %>% collapse_rows(columns = 1:2)  %>%  
+  pack_rows("Edad", 1, 9) %>%
+            pack_rows("Nivel Educacional", 10, 21) %>%
+            pack_rows("Ocupación", 22, 36) %>% 
+            pack_rows("Sexo", 37, 44) %>%
+            kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = T)  
+```
+
+
+```{r, echo = F}
+mv %>% filter(!is.na(cui2_d), sexo != "Otro") %>%
+  group_by(sexo, cui2_d) %>%
+  summarise(n = n()) %>% 
+  mutate (prop = round(n/ sum(n),4)*100) %>% 
+  ggplot(aes(x = cui2_d, y = prop, fill = cui2_d)) +
+  geom_bar(stat = "identity") + facet_wrap(.~ sexo) +
+  geom_text(aes(label = paste0(prop, "%")),
+            position = position_stack(vjust = .5), color="white", size= 4) + 
+  labs(x = "", y = "%", title = "Gráfico 1. Proporción de personas según carga de cuidados y sexo (%)") + 
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) + 
+  theme_classic() + scale_fill_jama(name = "") +
+  theme(legend.position = "none")
+
+```
+
+```{r, echo = F}
+mv %>% filter(!is.na(dic_cui_d), sexo != "Otro") %>%
+  group_by(sexo,educ_3cat, dic_cui_d) %>%
+  summarise(n = n()) %>% 
+  mutate (prop = round(n/ sum(n),4)*100) %>% na.omit() %>% 
+  ggplot(aes(x = dic_cui_d, y = prop, fill = dic_cui_d)) +
+  geom_bar(stat = "identity") + facet_wrap(educ_3cat~ sexo) +
+  geom_text(aes(label = paste0(prop, "%")),
+            position = position_stack(vjust = .5), color="white", size= 4) + 
+  labs(x = "", y = "%", title = "Gráfico 2. Proporción de personas según carga de cuidados, sexo y nivel educacional (%)") + 
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) + 
+  theme_classic() + scale_fill_jama(name = "") +
+  theme(legend.position = "none")
+
+```
+
+# Descripción de las mujeres según cuidados 
+
+**Tabla 8**. Estadísticos descriptivos sociodemográficos para mujeres MOVID-19
+```{r, echo = F, results='asis'}
+m <- mv %>% filter(sexo =="Femenino")%>% select(edad_cat, educ_3cat, pr3_ocupacion, prev, cui1_dep_nna5, cui1_dep_nna18, cui1_dep_adultos, cui1_dep_otra, cui1_dep_null)
+
+print(summarytools::dfSummary(m,plain.ascii = FALSE, headings = F, method = "render"))
+```
+Fuente: Elaboración de MOVID-19
+*Nota*: Solo fueron consideradas (i) la última observación de las personas con datos para (ii) en el módulo de cuidados y que fueran mujeres
+
+# Descripción de hombres según cuidados 
+
+**Tabla 9**. Estadísticos descriptivos sociodemográficos para hombres MOVID-19
+```{r, echo = F, results='asis'}
+m <- mv %>% filter(sexo =="Masculino")%>% select(edad_cat, educ_3cat, pr3_ocupacion, prev, cui1_dep_nna5, cui1_dep_nna18, cui1_dep_adultos, cui1_dep_otra, cui1_dep_null)
+
+print(summarytools::dfSummary(m,plain.ascii = FALSE, headings = F, method = "render"))
+```
+Fuente: Elaboración de MOVID-19
+*Nota*: Solo fueron consideradas (i) la última observación de las personas con datos para (ii) en el módulo de cuidados y que fueran hombres
+
+
+# Regresión
+
+## Lineal
+
+Se realizará una regresión lineal [^1] considerando `cui2_d` como una variable continua, aunque se debe evaluar su curtosis y asimetría para poder realizar este procedimiento. En caso de que se estime que se debe realizar una regresión logística para una variable policórca o tetracórica se puede indicar.
+
+
+Primero, se transformó sexo, nivel educacional, seguro de salud y región como factores, y edad se transformó en un polinomio para evitar problemas de linealidad. Luego se probó en el *modelo 2* con edad categorizada. En el *modelo 3* región se ingresa como dicotómica. 
+
+Las categorías de referencias son Hombre, Profesional, ISAPRE, de la Región Metropolitana y de 65 años y más
+
+```{r, echo= F}
+# Transformar a factor para lm
+mv$sexo <- as_factor(mv$sexo)
+mv$educ_3cat <- as_factor(mv$educ_3cat)
+mv$prev <- as_factor(mv$prev)
+mv <- within(mv, prev <- relevel(prev, ref = "ISAPRE"))
+mv$region <- as_factor(mv$region)
+mv <- within(mv, region <- relevel(region, ref = "Metropolitana de Santiago"))
+mv$d_reg <- ifelse(mv$region == "Metropolitana de Santiago", "RM", "No RM")
+mv$d_reg <- as_factor(mv$d_reg)
+mv <- mutate(mv, edad2 = edad^2) 
+mv$edad_3cat <- as_factor(mv$edad_3cat)
+mv$cui <- fct_rev(mv$cui2_d)
+mv$cui2 <- as.numeric(mv$cui)
+```
+
+
+```{r, echo= F}
+m1 <- lm(cui2 ~ sexo + edad2     + educ_3cat + prev + region, data = mv)
+m2 <- lm(cui2 ~ sexo + edad_3cat + educ_3cat + prev + region, data = mv)
+m3 <- lm(cui2 ~ sexo + edad_3cat + educ_3cat + prev + d_reg, data = mv)
+
+```
+
+```{r, echo = FALSE}
+htmlreg(l = list(m1,m2,m3),
+        custom.model.names = c("Modelo 1","Modelo 1","Modelo 3"), caption= "", caption.above = "Modelos de regresión para predecir la carga de cuidados", custom.note = "$^{***}$ p < 0.001; $^{**}$ p < 0.01; $^{*}$ p < 0.05 <br> Errores estándar entre paréntesis \n**Nota**: la variable dependiente tiene como categoría 5 el aumento en más de 8 horas")
+
+```
+
+```{r, echo = F, fig.cap="Modelo N°1 de regresión lineal"}
+plot_model(m3,vline.color = "grey", title= "")
+```
+
+[^1]: Un hecho importante es debido a que los datos no son i.i.d (probabilísticos) ni representativos, no se deberían realizar estos procedimientos (y menos con inferencia estadística)
+
+## Ordinal Logit
+
+```{r, echo= F}
+pacman::p_load(MASS)
+```
+
+```{r recod, echo = F}
+#Recodificar tipo de cuidado 
+mv$cui1_dep_adultos <- as_factor(mv$cui1_dep_adultos)
+mv$cui1_dep_nna18 <- as_factor(mv$cui1_dep_nna18)
+mv$cui1_dep_nna5 <- as_factor(mv$cui1_dep_nna5)
+```
+
+
+```{r, echo= F}
+m0 <- polr(cui ~ 1 + region, data = mv)
+m1 <- polr(cui ~ sexo + edad2     + educ_3cat + prev + region, data = mv)
+m2 <- polr(cui ~ sexo + edad_3cat + educ_3cat + prev + region, data = mv)
+m3 <- polr(cui ~ sexo + edad_3cat + educ_3cat + prev + d_reg, data = mv)
+m4 <- polr(cui ~ sexo + edad_3cat + educ_3cat + prev + d_reg + cui1_dep_adultos + cui1_dep_nna18 +  cui1_dep_nna5, data = mv)
+
+```
+
+```{r, echo = FALSE}
+htmlreg(l = list(m0,m1,m2,m3, m4),
+        custom.model.names = c("Modelo 0","Modelo 1","Modelo 1","Modelo 3", "Modelo 4"), caption= "", caption.above = "Modelos de regresión para predecir la carga de cuidados", custom.note = "$^{***}$ p < 0.001; $^{**}$ p < 0.01; $^{*}$ p < 0.05 <br> Errores estándar entre paréntesis \n**Nota**: la variable dependiente tiene como categoría 5 el aumento en más de 8 horas")
+```
+
+
+```{r, echo = F, fig.cap="Modelo N°2 de regresión con exponenciar (exp)"}
+# Plot de Odds Ratio
+p <-  plot_model(m4,vline.color = "grey", title= "", show.intercept = FALSE,  string.est = "Odds Ratios",
+           show.values = TRUE, value.offset = .3,
+           rm.terms = c("Ha disminuido|Sigue igual", "Sigue igual|Aumentó 1 a 3 hrs.", "Aumentó 1 a 3 hrs.|Aumentó 4 a 8 hrs.",
+                        "Aumentó 4 a 8 hrs.|Aumentó más 8 hrs.")) + 
+  scale_x_discrete(limits = c("d_regRM",
+                              "prevOtra",
+                              "prevNinguna",
+                              "prevFuerzas Armadas y de Orden",
+                              "prevFONASA",
+                              "cui1_dep_adultos1",
+                              "cui1_dep_nna181",
+                              "cui1_dep_nna51",
+                              "edad_3cat40 a 64", "edad_3cat18 a 39",
+                              "educ_3catMedia o menos", "educ_3catTécnica","sexoOtro","sexoFemenino"),
+                   labels = c("Región(Metropolitana)",
+                              "Previsión(Otra)",
+                              "Previsión(Ninguna)",
+                              "Previsión(FF.AA y Orden",
+                              "Previsión(FONASA)",
+                              "Tipo cuidador(Adultos)",
+                              "Tipo cuidador(NNA 6 a 18 años)",
+                              "Tipo cuidador(NN 0 a 5 años)",
+                              "Edad (40 a 64 años)",
+                              "Edad (18 a 39 años)",
+                              "Nivel educacional(Media y básica)",
+                              "Nivel educacional(Técnica)","Género(Otro)","Género(Femenino)"))
+
+
+ggsave(
+  plot = p,
+  filename = "reg_cuidados.png",
+  device = "png",
+  dpi = "retina",
+  units = "cm",
+  width = 45,
+  height = 15)
+
+
+
+```
